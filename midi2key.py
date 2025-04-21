@@ -1,13 +1,12 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from mido import get_input_names, open_input
-from pynput.keyboard import Controller, Key
+import keyboard as kb  # substituindo pynput
 import threading
 import json
+import pyautogui as pag
 
-keyboard = Controller()
 midi_mappings = {}
-
 listening_for_key = False
 current_midi_note = None
 pressed_keys = {}  # armazena as teclas pressionadas por nota MIDI
@@ -19,26 +18,19 @@ def on_midi(msg):
         if listening_for_key:
             current_midi_note = note
             status_label.config(text=f"Pressione uma tecla do teclado para mapear a nota MIDI {note}")
-        elif note in midi_mappings:
+        elif note in midi_mappings and note not in pressed_keys:
             key_str = midi_mappings[note]
-            if note not in pressed_keys:
-                try:
-                    if len(key_str) == 1:
-                        keyboard.press(key_str)
-                        pressed_keys[note] = key_str
-                    else:
-                        key = getattr(Key, key_str, None)
-                        if key:
-                            keyboard.press(key)
-                            pressed_keys[note] = key
-                except Exception as e:
-                    print(f"Erro ao pressionar tecla: {e}")
+            try:
+                kb.press(key_str)  # segura a tecla
+                pressed_keys[note] = key_str
+            except Exception as e:
+                print(f"Erro ao pressionar tecla: {e}")
 
-    elif (msg.type == 'note_off') or (msg.type == 'note_on' and msg.velocity == 0):
+    elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
         note = msg.note
         if note in pressed_keys:
             try:
-                keyboard.release(pressed_keys[note])
+                kb.release(pressed_keys[note])  # solta a tecla
                 del pressed_keys[note]
             except Exception as e:
                 print(f"Erro ao soltar tecla: {e}")
@@ -67,8 +59,9 @@ def start_mapping():
 def on_key_press(event):
     global listening_for_key, current_midi_note
     if listening_for_key and current_midi_note is not None:
-        midi_mappings[current_midi_note] = event.keysym
-        mappings_list.insert(tk.END, f"Nota MIDI {current_midi_note} → Tecla '{event.keysym}'")
+        key_pressed = event.keysym.lower()
+        midi_mappings[current_midi_note] = key_pressed
+        mappings_list.insert(tk.END, f"Nota MIDI {current_midi_note} → Tecla '{key_pressed}'")
         status_label.config(text="Mapeamento salvo. Clique em mapear para outro ou toque uma nota.")
         listening_for_key = False
         current_midi_note = None
